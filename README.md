@@ -30,7 +30,7 @@ Use a **demo** account first. Log in to the MT5 terminal, then:
 pip install MetaTrader5
 set MT5_ENABLED=1
 set MT5_SYMBOL_SUFFIX=m      # Exness standard = m, cent = c, none = leave unset
-set MT5_PATH=C:\Program Files\MetaTrader 5 EXNESS	erminal64.exe   # optional
+set MT5_PATH=C:\Program Files\MetaTrader 5 EXNESS\terminal64.exe   # optional
 python scripts/mt5_smoke.py   # prints bid/ask + last candle per symbol; add --account to print balance
 uvicorn app.main:app
 ```
