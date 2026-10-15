@@ -54,26 +54,39 @@ class DemoFeed:
 
 
 class MT5Feed(DemoFeed):
-    """Thin read-only wrapper over the MetaTrader5 Python package. Reads only: no order_send is used."""
+    """Thin read-only wrapper over the MetaTrader5 Python package. Reads only: no order functions are used."""
     source = "mt5"
 
-    def __init__(self):
+    def __init__(self, suffix: str | None = None):
         import MetaTrader5 as mt5
-        if not mt5.initialize():
+        # Brokers append a suffix per account type (Exness: "m" on standard accounts, "c" on cent accounts)
+        self.suffix = os.getenv("MT5_SYMBOL_SUFFIX", "") if suffix is None else suffix
+        path = os.getenv("MT5_PATH")
+        ok = mt5.initialize(path) if path else mt5.initialize()
+        if not ok:
             raise RuntimeError(f"MT5 initialize failed: {mt5.last_error()}")
         self.mt5 = mt5
 
+    def _broker_symbol(self, symbol: str) -> str:
+        s = _check(symbol)
+        name = s + self.suffix
+        if not self.mt5.symbol_select(name, True):
+            raise RuntimeError(f"Symbol {name} not available on this account (check MT5_SYMBOL_SUFFIX)")
+        return name
+
     def price(self, symbol: str) -> dict:
         s = _check(symbol)
-        t = self.mt5.symbol_info_tick(s)
+        t = self.mt5.symbol_info_tick(self._broker_symbol(s))
         if t is None:
             raise RuntimeError(f"No tick for {s}")
         return {"symbol": s, "bid": t.bid, "ask": t.ask, "source": self.source}
 
     def candles(self, symbol: str, timeframe: str, count: int) -> list[dict]:
         s = _check(symbol)
+        if timeframe not in TF_SECONDS:
+            raise ValueError(f"Unknown timeframe {timeframe!r}. Supported: {', '.join(TF_SECONDS)}")
         tf = getattr(self.mt5, f"TIMEFRAME_{timeframe}")
-        rates = self.mt5.copy_rates_from_pos(s, tf, 0, count)
+        rates = self.mt5.copy_rates_from_pos(self._broker_symbol(s), tf, 0, count)
         if rates is None:
             raise RuntimeError(f"No rates for {s}")
         return [{"time": int(r["time"]), "open": float(r["open"]), "high": float(r["high"]),

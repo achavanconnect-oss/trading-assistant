@@ -24,11 +24,24 @@ uvicorn app.main:app --reload
 ```
 Open http://127.0.0.1:8000.
 
+### Live data from MetaTrader 5 (Exness or any broker)
+Use a **demo** account first. Log in to the MT5 terminal, then:
+```bash
+pip install MetaTrader5
+set MT5_ENABLED=1
+set MT5_SYMBOL_SUFFIX=m      # Exness standard = m, cent = c, none = leave unset
+set MT5_PATH=C:\Program Files\MetaTrader 5 EXNESS	erminal64.exe   # optional
+python scripts/mt5_smoke.py   # prints bid/ask + last candle per symbol; add --account to print balance
+uvicorn app.main:app
+```
+The MT5 feed only reads prices, candles and account info. A test asserts the module never references order functions.
+Note: with MT5 enabled, `get_account_summary` sends your balance and equity to the LLM provider as tool output.
+
 ## Test (no API key or network needed)
 ```bash
 pytest -q
 ```
-The agent loop is tested against a scripted fake client: grounded reply (no warning), invented price (warning),
+The MT5 feed is tested against a stub `MetaTrader5` module (suffix mapping, errors, read-only calls). The agent loop is tested against a scripted fake client: grounded reply (no warning), invented price (warning),
 runaway tool loop (capped), SSE endpoint, position-size math and input validation.
 
 ## Limitations
