@@ -9,6 +9,22 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.11", "3.13"]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      REDIS_URL: redis://localhost:6379/0
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -16,7 +32,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: pip
       - run: pip install -r requirements.txt
-      - run: pytest -q
+      - run: pytest -q -rs
   web:
     runs-on: ubuntu-latest
     defaults:
@@ -35,18 +51,32 @@ jobs:
       - run: npm run build
   docker:
     runs-on: ubuntu-latest
+    env:
+      AUTH_REQUIRED: "1"
+      JWT_SECRET: ci-only-secret-for-the-smoke-test-0123456789
     steps:
       - uses: actions/checkout@v4
       - run: docker compose build
       - run: docker compose up -d
-      - name: Smoke test the running containers
+      - name: Smoke test the running stack (API, Postgres, Redis, Next.js)
         run: |
           for i in $(seq 1 40); do curl -sf http://localhost:8000/health && break || sleep 2; done
-          curl -sf -X POST http://localhost:8000/tools/get_price -H 'content-type: application/json' -d '{"symbol":"EURUSD"}'
+          curl -s http://localhost:8000/health | grep -q '"auth_required":true'
+          # protected without a token
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:8000/tools/get_price -H 'content-type: application/json' -d '{"symbol":"EURUSD"}')" = "401"
+          # register, login, use the token
+          curl -sf -X POST http://localhost:8000/auth/register -H 'content-type: application/json' -d '{"email":"ci@example.com","password":"ci-password-123"}'
+          TOKEN=$(curl -sf -X POST http://localhost:8000/auth/login -H 'content-type: application/json' -d '{"email":"ci@example.com","password":"ci-password-123"}' | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+          curl -sf -X POST http://localhost:8000/tools/get_price -H "Authorization: Bearer $TOKEN" -H 'content-type: application/json' -d '{"symbol":"EURUSD"}'
+          curl -sf http://localhost:8000/history -H "Authorization: Bearer $TOKEN"
+          # the user really is in Postgres and the quote really is in Redis
+          docker compose exec -T db psql -U postgres -tAc "select count(*) from ta_users where email='ci@example.com'" | grep -qx 1
+          docker compose exec -T redis redis-cli keys 'ta:price:*' | grep -q 'ta:price:demo:EURUSD'
+          # front end
           for i in $(seq 1 40); do curl -sf -o /dev/null http://localhost:3000/ && break || sleep 2; done
           curl -sf http://localhost:3000/ | grep -q "Trading Assistant"
           test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:3000/api/chat -H 'content-type: application/json' -d '{"messages":[]}')" = "400"
       - if: failure()
         run: docker compose logs
       - if: always()
-        run: docker compose down
+        run: docker compose down -v

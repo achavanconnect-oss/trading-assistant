@@ -3,6 +3,9 @@ uvicorn[standard]
 pydantic
 httpx
 mcp>=2
+pyjwt
+redis
+psycopg[binary]
 pytest
 # optional: Claude instead of a local model (LLM_PROVIDER=anthropic, needs ANTHROPIC_API_KEY):
 # anthropic

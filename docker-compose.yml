@@ -1,9 +1,31 @@
-# Backend (FastAPI) + front end (Next.js). The default model is a local Ollama server on the host: no API key.
+# Full stack: FastAPI backend + Postgres (users, chat history) + Redis (quote cache, login rate limit) + Next.js front end.
+# The default model is a local Ollama server on the host: no API key.
 # Live MetaTrader 5 data needs the Windows MT5 terminal, so inside Docker the demo feed is used.
 #
 #   docker compose up --build            # then open http://localhost:3000 (or http://localhost:8000 for the plain UI)
+#   AUTH_REQUIRED=1 JWT_SECRET=<32+ random characters> docker compose up --build    # login required on the API
 #   LLM_PROVIDER=anthropic ANTHROPIC_API_KEY=... docker compose build --build-arg WITH_ANTHROPIC=1 api && docker compose up
+# Change POSTGRES_PASSWORD for any deployment other than a local demo. The database and Redis ports are not published.
 services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
   api:
     build: .
     ports: ["8000:8000"]
@@ -12,7 +34,16 @@ services:
       LLM_MODEL: ${LLM_MODEL:-}
       OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/postgres
+      REDIS_URL: redis://redis:6379/0
+      AUTH_REQUIRED: ${AUTH_REQUIRED:-0}
+      JWT_SECRET: ${JWT_SECRET:-}
     extra_hosts: ["host.docker.internal:host-gateway"]
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   web:
     build: ./web
@@ -27,3 +58,6 @@ services:
     depends_on:
       api:
         condition: service_healthy
+
+volumes:
+  pgdata:

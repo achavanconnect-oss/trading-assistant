@@ -97,14 +97,24 @@ npm test && npm run typecheck && npm run build
 ```
 Tests (Vitest) use the AI SDK mock language model to check the streamed tool call and result, the system prompt, the tool list and the backend error handling.
 
+## Accounts, history and caching
+- **Auth** (`app/auth.py`): `POST /auth/register`, `POST /auth/login` return a JWT (HS256, 1 hour). Passwords are hashed with scrypt (stdlib) and never stored in plain text.
+  Set `AUTH_REQUIRED=1` and a `JWT_SECRET` of at least 32 characters (shorter secrets are refused; there is no default secret) to require a bearer token on `/chat`, `/tools/*` and `/history`.
+  It is **off by default** so the local demo needs no login. The bundled plain-JS and Next.js pages do not log in, so with `AUTH_REQUIRED=1` use the API directly (or add a login screen).
+- **Login protection:** 5 failed attempts per email per minute returns 429 (counter lives in Redis, or in memory without it). Unknown email and wrong password give the same 401 response.
+- **Postgres** (`app/db.py`, `DATABASE_URL`): users and per-user chat history (`GET /history`). Without `DATABASE_URL` an in-memory store is used (lost on restart).
+- **Redis** (`app/cache.py`, `REDIS_URL`): quotes are cached for 2 seconds so repeated price questions do not hammer the MT5 terminal; account data is never cached. Without `REDIS_URL` an in-process cache is used.
+- Tests run the same contract against the in-memory and the real Postgres/Redis implementations; the real ones run in CI against service containers.
+`docker compose up --build` starts the whole stack (API, Postgres, Redis, Next.js).
+
 ## Docker
 ```bash
 docker compose up --build        # http://localhost:3000 (Next.js) and http://localhost:8000 (FastAPI + plain UI)
 ```
-Two images: the FastAPI backend (`Dockerfile`) and the Next.js standalone server (`web/Dockerfile`). By default the containers call Ollama on
+Four services: Postgres, Redis, and two images: the FastAPI backend (`Dockerfile`) and the Next.js standalone server (`web/Dockerfile`). By default the containers call Ollama on
 the host (`OLLAMA_URL=http://host.docker.internal:11434`), so no API key is needed. MetaTrader 5 only runs on Windows, so inside Docker the demo feed is used.
 For Claude: `docker compose build --build-arg WITH_ANTHROPIC=1 api`, then set `LLM_PROVIDER=anthropic` and `ANTHROPIC_API_KEY`.
-CI builds both images, starts them and smoke-tests `/health`, `/tools/get_price`, the Next.js page and the `/api/chat` input validation.
+CI builds both images, starts the stack with auth on, and checks: 401 without a token, register and login, an authorised price call, the user row in Postgres, the cached quote in Redis, the Next.js page and the `/api/chat` input validation.
 To run on a Linux server (for example an AWS EC2 instance): install Docker, clone the repo, run the same command, and put a reverse proxy with HTTPS in front.
 Nothing is deployed publicly yet.
 
