@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Trading Assistant</title>
+<style>
+body{font:15px system-ui;max-width:720px;margin:2rem auto;padding:0 1rem}
+#log{border:1px solid #ccc;border-radius:8px;padding:1rem;min-height:300px;white-space:pre-wrap}
+.tool{color:#555;font-size:13px;background:#f4f4f4;padding:4px 8px;border-radius:4px;margin:6px 0}
+.warn{color:#b00020;font-weight:600;margin-top:6px}
+form{display:flex;gap:8px;margin-top:1rem}input{flex:1;padding:8px}
+</style></head><body>
+<h1>Trading Assistant</h1>
+<p>Read-only. Cannot place trades. Not financial advice.</p>
+<div id="log"></div>
+<form id="f"><input id="q" placeholder="e.g. Size a EURUSD trade at 1% risk with a stop 20 pips below the current price" autocomplete="off"><button>Send</button></form>
+<script>
+const log = document.getElementById('log'), f = document.getElementById('f'), q = document.getElementById('q');
+let hist = [];
+function add(cls, text){ const d = document.createElement('div'); if (cls) d.className = cls; d.textContent = text; log.append(d); return d; }
+f.onsubmit = async e => {
+  e.preventDefault();
+  const t = q.value.trim(); if (!t) return; q.value = '';
+  add('', 'You: ' + t);
+  hist.push({role: 'user', content: t});
+  const box = add('', ''); let reply = '';
+  const r = await fetch('/chat', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({messages: hist})});
+  const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '';
+  while (true) {
+    const {done, value} = await rd.read(); if (done) break;
+    buf += dec.decode(value, {stream: true});
+    let i;
+    while ((i = buf.indexOf('\n\n')) >= 0) {
+      const line = buf.slice(0, i); buf = buf.slice(i + 2);
+      if (!line.startsWith('data: ')) continue;
+      const ev = JSON.parse(line.slice(6));
+      if (ev.type === 'text') { reply += ev.data; box.textContent = reply; }
+      else if (ev.type === 'tool') add('tool', 'tool: ' + ev.name + ' ' + JSON.stringify(ev.args));
+      else if (ev.type === 'warning' || ev.type === 'error') add('warn', ev.message);
+    }
+  }
+  hist.push({role: 'assistant', content: reply});
+};
+</script></body></html>

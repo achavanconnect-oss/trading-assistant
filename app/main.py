@@ -1,0 +1,47 @@
+import json, os
+from fastapi import FastAPI, Depends
+from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
+from app import agent, data
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+STATIC = os.path.join(HERE, "..", "static")
+app = FastAPI(title="Trading Assistant")
+
+
+class ChatIn(BaseModel):
+    messages: list[dict] = Field(min_length=1, max_length=40)
+
+
+def get_client():
+    from anthropic import AsyncAnthropic
+    return AsyncAnthropic()  # reads ANTHROPIC_API_KEY from the environment
+
+
+def get_feed():
+    return data.get_feed()
+
+
+@app.post("/chat")
+async def chat(body: ChatIn, client=Depends(get_client), feed=Depends(get_feed)):
+    async def sse():
+        try:
+            async for ev in agent.run_chat(client, body.messages, feed):
+                yield f"data: {json.dumps(ev, default=str)}\n\n"
+        except Exception as e:  # noqa: BLE001
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+    return StreamingResponse(sse(), media_type="text/event-stream")
+
+
+@app.get("/health")
+def health():
+    return {"ok": True, "model": agent.MODEL, "feed": "mt5" if os.getenv("MT5_ENABLED") == "1" else "demo"}
+
+
+app.mount("/static", StaticFiles(directory=STATIC), name="static")
+
+
+@app.get("/")
+def index():
+    return FileResponse(os.path.join(STATIC, "index.html"))
