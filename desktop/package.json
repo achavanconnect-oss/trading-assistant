@@ -1,0 +1,60 @@
+{
+  "name": "trading-assistant-desktop",
+  "productName": "Trading Assistant",
+  "version": "0.1.0",
+  "description": "Windows desktop shell for the Trading Assistant (Electron).",
+  "private": true,
+  "main": "dist/main.js",
+  "scripts": {
+    "prepare:web": "node scripts/prepare-web.mjs",
+    "compile": "tsc -p tsconfig.json",
+    "start": "npm run compile && electron .",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "dist": "npm run prepare:web && npm run compile && electron-builder --win"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "electron": "^44.7.2",
+    "electron-builder": "^26.15.3",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  },
+  "build": {
+    "appId": "io.github.achavanconnect-oss.trading-assistant",
+    "productName": "Trading Assistant",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "web-server",
+        "to": "web-server",
+        "filter": [
+          "**/*",
+          ".next/**/*"
+        ]
+      }
+    ],
+    "npmRebuild": false,
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "TradingAssistant-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "TradingAssistant-Portable-${version}.${ext}"
+    }
+  }
+}

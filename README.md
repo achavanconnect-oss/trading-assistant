@@ -97,6 +97,9 @@ npm test && npm run typecheck && npm run build
 ```
 Tests (Vitest) use the AI SDK mock language model to check the streamed tool call and result, the system prompt, the tool list and the backend error handling.
 
+## Windows desktop app (`desktop/`)
+An Electron + TypeScript shell around the Next.js UI, packaged into a Windows installer and a portable exe. See [desktop/README.md](desktop/README.md) for what it does, how to build it and its limits (backend not bundled, unsigned, no auto-update yet).
+
 ## Accounts, history and caching
 - **Auth** (`app/auth.py`): `POST /auth/register`, `POST /auth/login` return a JWT (HS256, 1 hour). Passwords are hashed with scrypt (stdlib) and never stored in plain text.
   Set `AUTH_REQUIRED=1` and a `JWT_SECRET` of at least 32 characters (shorter secrets are refused; there is no default secret) to require a bearer token on `/chat`, `/tools/*` and `/history`.

@@ -80,3 +80,28 @@ jobs:
         run: docker compose logs
       - if: always()
         run: docker compose down -v
+  desktop:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm ci
+        working-directory: web
+      - run: npm ci
+        working-directory: desktop
+      - run: npm test
+        working-directory: desktop
+      - name: Build the Windows installer and portable exe
+        run: npm run dist
+        working-directory: desktop
+      - name: Smoke test the packaged app (starts its web server, loads the page)
+        working-directory: desktop
+        run: |
+          "release/win-unpacked/Trading Assistant.exe" --smoke 2>&1 | tee smoke.txt
+          grep -q "SMOKE_OK" smoke.txt
+          ls release/*.exe
