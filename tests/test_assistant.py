@@ -215,3 +215,16 @@ def test_position_size_requires_a_stop_and_positive_pips():
 def test_run_tool_accepts_stop_pips_without_entry():
     r = tools.run_tool("position_size", dict(symbol="EURUSD", balance=10000, risk_pct=1, stop_pips=20), data.DemoFeed())
     assert r["lots"] == 0.5
+
+
+def test_empty_env_vars_fall_back_to_defaults(monkeypatch):
+    """docker compose passes unset variables as empty strings; they must not become an empty model name."""
+    import importlib
+    monkeypatch.setenv("LLM_PROVIDER", "")
+    monkeypatch.setenv("LLM_MODEL", "")
+    try:
+        importlib.reload(agent)
+        assert agent.PROVIDER == "ollama" and agent.MODEL == "qwen2.5:7b-instruct"
+    finally:
+        monkeypatch.undo()
+        importlib.reload(agent)

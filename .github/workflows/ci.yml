@@ -33,3 +33,20 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose build
+      - run: docker compose up -d
+      - name: Smoke test the running containers
+        run: |
+          for i in $(seq 1 40); do curl -sf http://localhost:8000/health && break || sleep 2; done
+          curl -sf -X POST http://localhost:8000/tools/get_price -H 'content-type: application/json' -d '{"symbol":"EURUSD"}'
+          for i in $(seq 1 40); do curl -sf -o /dev/null http://localhost:3000/ && break || sleep 2; done
+          curl -sf http://localhost:3000/ | grep -q "Trading Assistant"
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:3000/api/chat -H 'content-type: application/json' -d '{"messages":[]}')" = "400"
+      - if: failure()
+        run: docker compose logs
+      - if: always()
+        run: docker compose down

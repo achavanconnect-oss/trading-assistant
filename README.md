@@ -97,6 +97,17 @@ npm test && npm run typecheck && npm run build
 ```
 Tests (Vitest) use the AI SDK mock language model to check the streamed tool call and result, the system prompt, the tool list and the backend error handling.
 
+## Docker
+```bash
+docker compose up --build        # http://localhost:3000 (Next.js) and http://localhost:8000 (FastAPI + plain UI)
+```
+Two images: the FastAPI backend (`Dockerfile`) and the Next.js standalone server (`web/Dockerfile`). By default the containers call Ollama on
+the host (`OLLAMA_URL=http://host.docker.internal:11434`), so no API key is needed. MetaTrader 5 only runs on Windows, so inside Docker the demo feed is used.
+For Claude: `docker compose build --build-arg WITH_ANTHROPIC=1 api`, then set `LLM_PROVIDER=anthropic` and `ANTHROPIC_API_KEY`.
+CI builds both images, starts them and smoke-tests `/health`, `/tools/get_price`, the Next.js page and the `/api/chat` input validation.
+To run on a Linux server (for example an AWS EC2 instance): install Docker, clone the repo, run the same command, and put a reverse proxy with HTTPS in front.
+Nothing is deployed publicly yet.
+
 ## Test (no API key or network needed)
 ```bash
 pytest -q

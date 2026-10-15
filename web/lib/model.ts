@@ -9,7 +9,7 @@ type Env = Record<string, string | undefined>;
  *   LLM_PROVIDER=anthropic:        Claude via @ai-sdk/anthropic (optional dependency) and ANTHROPIC_API_KEY.
  */
 export async function getModel(env: Env = process.env): Promise<LanguageModel> {
-  const provider = (env.LLM_PROVIDER ?? 'ollama').toLowerCase();
+  const provider = (env.LLM_PROVIDER || 'ollama').toLowerCase();
 
   if (provider === 'anthropic') {
     let mod: typeof import('@ai-sdk/anthropic');
@@ -18,7 +18,7 @@ export async function getModel(env: Env = process.env): Promise<LanguageModel> {
     } catch {
       throw new Error('LLM_PROVIDER=anthropic needs: npm install @ai-sdk/anthropic (and ANTHROPIC_API_KEY)');
     }
-    return mod.anthropic(env.LLM_MODEL ?? 'claude-sonnet-5-5');
+    return mod.anthropic(env.LLM_MODEL || 'claude-sonnet-5-5');
   }
 
   if (provider !== 'ollama') {
@@ -26,7 +26,7 @@ export async function getModel(env: Env = process.env): Promise<LanguageModel> {
   }
   const ollama = createOpenAICompatible({
     name: 'ollama',
-    baseURL: `${env.OLLAMA_URL ?? 'http://localhost:11434'}/v1`,
+    baseURL: `${env.OLLAMA_URL || 'http://localhost:11434'}/v1`,
   });
-  return ollama.chatModel(env.LLM_MODEL ?? 'qwen2.5:7b-instruct');
+  return ollama.chatModel(env.LLM_MODEL || 'qwen2.5:7b-instruct');
 }

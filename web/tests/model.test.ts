@@ -20,6 +20,11 @@ describe('getModel', () => {
     expect(m.provider).toContain('anthropic');
   });
 
+  it('treats empty environment variables (as docker compose passes them) as unset', async () => {
+    const m = (await getModel({ LLM_PROVIDER: '', LLM_MODEL: '', OLLAMA_URL: '' })) as unknown as M;
+    expect(m.modelId).toBe('qwen2.5:7b-instruct');
+  });
+
   it('rejects an unknown provider', async () => {
     await expect(getModel({ LLM_PROVIDER: 'nope' })).rejects.toThrow('unknown LLM_PROVIDER');
   });

@@ -1,0 +1,29 @@
+# Backend (FastAPI) + front end (Next.js). The default model is a local Ollama server on the host: no API key.
+# Live MetaTrader 5 data needs the Windows MT5 terminal, so inside Docker the demo feed is used.
+#
+#   docker compose up --build            # then open http://localhost:3000 (or http://localhost:8000 for the plain UI)
+#   LLM_PROVIDER=anthropic ANTHROPIC_API_KEY=... docker compose build --build-arg WITH_ANTHROPIC=1 api && docker compose up
+services:
+  api:
+    build: .
+    ports: ["8000:8000"]
+    environment:
+      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+      LLM_MODEL: ${LLM_MODEL:-}
+      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    extra_hosts: ["host.docker.internal:host-gateway"]
+
+  web:
+    build: ./web
+    ports: ["3000:3000"]
+    environment:
+      BACKEND_URL: http://api:8000
+      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+      LLM_MODEL: ${LLM_MODEL:-}
+      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    depends_on:
+      api:
+        condition: service_healthy
