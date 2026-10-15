@@ -91,8 +91,8 @@ and each tool calls the FastAPI backend at `POST /tools/{name}` (unknown names a
 uvicorn app.main:app
 # terminal 2: front end
 cd web && npm install
-npm run dev        # uses Ollama by default; for Claude set LLM_PROVIDER=anthropic and ANTHROPIC_API_KEY
-#         # http://localhost:3000   (BACKEND_URL defaults to http://127.0.0.1:8000)
+npm run dev        # http://localhost:3000, Ollama by default (BACKEND_URL defaults to http://127.0.0.1:8000)
+# for Claude instead: set LLM_PROVIDER=anthropic and ANTHROPIC_API_KEY
 npm test && npm run typecheck && npm run build
 ```
 Tests (Vitest) use the AI SDK mock language model to check the streamed tool call and result, the system prompt, the tool list and the backend error handling.
