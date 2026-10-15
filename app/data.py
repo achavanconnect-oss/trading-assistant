@@ -77,8 +77,9 @@ class MT5Feed(DemoFeed):
     def price(self, symbol: str) -> dict:
         s = _check(symbol)
         t = self.mt5.symbol_info_tick(self._broker_symbol(s))
-        if t is None:
-            raise RuntimeError(f"No tick for {s}")
+        if t is None or not t.bid or not t.ask:
+            # MT5 returns an empty (0.0) tick for a symbol it has only just selected, or when the market is closed
+            raise RuntimeError(f"No live quote for {s} yet (bid/ask empty). Try again in a moment.")
         return {"symbol": s, "bid": t.bid, "ask": t.ask, "source": self.source}
 
     def candles(self, symbol: str, timeframe: str, count: int) -> list[dict]:

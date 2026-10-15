@@ -83,3 +83,10 @@ def test_source_never_references_order_functions():
     src = pathlib.Path(data.__file__).read_text()
     for banned in ("order_send", "order_check", "positions_get", "Buy", "Sell"):
         assert banned not in src
+
+
+def test_zero_tick_is_an_error_not_a_price(feed):
+    f, stub = feed
+    stub.symbol_info_tick = lambda name: NS(bid=0.0, ask=0.0)
+    with pytest.raises(RuntimeError, match="No live quote"):
+        f.price("EURUSD")
