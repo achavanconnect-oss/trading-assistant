@@ -37,6 +37,22 @@ uvicorn app.main:app
 The MT5 feed only reads prices, candles and account info. A test asserts the module never references order functions.
 Note: with MT5 enabled, `get_account_summary` sends your balance and equity to the LLM provider as tool output.
 
+## MCP server
+The same four read-only tools are exposed over the Model Context Protocol, so any MCP client can use them:
+```bash
+python -m app.mcp_server        # stdio transport
+```
+Example Claude Desktop / Claude Code config:
+```json
+{"mcpServers": {"trading-assistant": {"command": "python", "args": ["-m", "app.mcp_server"], "cwd": "/path/to/trading-assistant"}}}
+```
+Tool parity with the chat agent and the absence of any order tool are enforced by tests.
+
+## Observability
+Every chat turn emits a `metrics` SSE event and appends one JSON line to `logs/metrics.jsonl`: steps, tool calls and errors,
+input/output tokens, total latency, time to first token, tool time and count of unverified numbers.
+Set `LLM_PRICE_IN_PER_MTOK` and `LLM_PRICE_OUT_PER_MTOK` (from your provider's price list) to also log `cost_usd`.
+
 ## Test (no API key or network needed)
 ```bash
 pytest -q

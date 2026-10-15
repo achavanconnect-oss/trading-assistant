@@ -130,3 +130,35 @@ def test_chat_endpoint_streams_sse():
 
 def test_chat_rejects_empty_messages():
     assert TestClient(app).post("/chat", json={"messages": []}).status_code == 422
+
+
+# ---------- metrics / observability ----------
+def test_metrics_event_and_log_line(tmp_path, monkeypatch):
+    log = tmp_path / "m.jsonl"
+    monkeypatch.setattr(agent, "METRICS_LOG", str(log))
+    monkeypatch.setattr(agent, "PRICE_IN", "3")
+    monkeypatch.setattr(agent, "PRICE_OUT", "15")
+    t1 = [call("get_price", {"symbol": "EURUSD"})]
+    t2 = [text("Done.")]
+    client = FakeClient([t1, t2])
+    # attach usage to each scripted final message
+    orig = FakeStream.get_final_message
+
+    async def with_usage(self):
+        m = await orig(self)
+        m.usage = NS(input_tokens=100, output_tokens=20)
+        return m
+    monkeypatch.setattr(FakeStream, "get_final_message", with_usage)
+    ev = collect(client)
+    m = next(e for e in ev if e["type"] == "metrics")
+    assert m["steps"] == 2 and m["tool_calls"] == 1 and m["tokens_in"] == 200 and m["tokens_out"] == 40
+    assert m["cost_usd"] == round((200 * 3 + 40 * 15) / 1e6, 6)
+    assert json.loads(log.read_text().splitlines()[-1])["steps"] == 2
+
+
+def test_metrics_without_usage_does_not_break(tmp_path, monkeypatch):
+    monkeypatch.setattr(agent, "METRICS_LOG", str(tmp_path / "m.jsonl"))
+    monkeypatch.setattr(agent, "PRICE_IN", None)
+    ev = collect(FakeClient([[text("Hello there.")]]))
+    m = next(e for e in ev if e["type"] == "metrics")
+    assert m["tokens_in"] == 0 and "cost_usd" not in m
