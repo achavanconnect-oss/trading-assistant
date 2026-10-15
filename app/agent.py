@@ -3,7 +3,7 @@ import json, os, time
 from typing import AsyncIterator
 from app import tools, guardrails, data
 
-PROVIDER = os.getenv("LLM_PROVIDER", "anthropic")   # anthropic | ollama (free, local)
+PROVIDER = os.getenv("LLM_PROVIDER", "ollama")   # ollama (free, local; default) | anthropic (optional, needs a key)
 MODEL = os.getenv("LLM_MODEL", "qwen2.5:7b-instruct" if PROVIDER == "ollama" else "claude-sonnet-5-5")
 MAX_STEPS = 6
 METRICS_LOG = os.getenv("METRICS_LOG", os.path.join("logs", "metrics.jsonl"))

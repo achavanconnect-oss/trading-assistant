@@ -1,9 +1,10 @@
 fastapi
 uvicorn[standard]
-anthropic
 pydantic
 httpx
 mcp>=2
 pytest
+# optional: Claude instead of a local model (LLM_PROVIDER=anthropic, needs ANTHROPIC_API_KEY):
+# anthropic
 # optional, Windows only, for live MT5 data (set MT5_ENABLED=1):
 # MetaTrader5

@@ -1,10 +1,10 @@
 # Trading Assistant
 
-A streaming chat assistant for a trading product: FastAPI backend, Anthropic tool calling, and a plain-JS chat UI.
+A streaming chat assistant for a trading product: FastAPI backend, tool calling on a free local model (Ollama) or optionally Claude, a plain-JS chat UI and a Next.js + TypeScript UI.
 Built around one rule: **the assistant must never invent a price, and it cannot place trades.**
 
 ## How it works
-- `app/agent.py`: tool-calling loop on the Anthropic Messages API (`AsyncAnthropic`, streaming). Streams text chunks,
+- `app/agent.py`: tool-calling loop with a streaming client interface (local Ollama model by default, Anthropic Messages API optional). Streams text chunks,
   runs tools the model requests, feeds results back, stops after 6 steps.
 - `app/tools.py`: four **read-only** tools: `get_price`, `get_candles`, `get_account_summary`, `position_size`.
   There is no order tool, and a test asserts that none can be added by name (`order`, `buy`, `sell`, `close`, `modify`).
@@ -16,13 +16,19 @@ Built around one rule: **the assistant must never invent a price, and it cannot 
 - `app/main.py`: `POST /chat` streams Server-Sent Events (`text`, `tool`, `warning`, `error`, `done`); `/health`; static UI.
 
 ## Run
+No API key is needed. The default is a free local model:
 ```bash
+ollama pull qwen2.5:7b-instruct
 pip install -r requirements.txt
-set ANTHROPIC_API_KEY=your_key        # Windows; use export on Linux/macOS
-set LLM_MODEL=claude-sonnet-5-5       # optional override
 uvicorn app.main:app --reload
 ```
-Open http://127.0.0.1:8000.
+Open http://127.0.0.1:8000. To use Claude instead (optional, paid, needs a key):
+```bash
+pip install anthropic
+set LLM_PROVIDER=anthropic            # Windows; use export on Linux/macOS
+set ANTHROPIC_API_KEY=your_key
+set LLM_MODEL=claude-sonnet-5-5       # optional override
+```
 
 ### Live data from MetaTrader 5 (Exness or any broker)
 Use a **demo** account first. Log in to the MT5 terminal, then:
@@ -54,10 +60,9 @@ input/output tokens, total latency, time to first token, tool time and count of 
 Set `LLM_PRICE_IN_PER_MTOK` and `LLM_PRICE_OUT_PER_MTOK` (from your provider's price list) to also log `cost_usd`.
 
 ## Free local model (Ollama)
-No API key needed: `app/ollama_client.py` gives the agent loop the same streaming interface as the Anthropic client.
+This is the default provider (`LLM_PROVIDER=ollama`). `app/ollama_client.py` gives the agent loop the same streaming interface as the Anthropic client.
 ```bash
 ollama pull qwen2.5:7b-instruct
-set LLM_PROVIDER=ollama
 uvicorn app.main:app
 ```
 Verified live on a Windows PC with an Exness MT5 **demo** account (`MT5_ENABLED=1`, `MT5_SYMBOL_SUFFIX=m`) and `qwen2.5:7b-instruct`:
@@ -68,15 +73,17 @@ Verified live on a Windows PC with an Exness MT5 **demo** account (`MT5_ENABLED=
   Two fixes came out of that run: `position_size` rejects an `entry` that did not come from `get_price` or the user, and it accepts `stop_pips` so the
   model never does price arithmetic. After the fix the model sized 0.5 lots in two out of two runs (after one self-corrected tool error).
 - Latency on a laptop with a 7B model was 12 to 70 seconds per answer. A 7B model is weaker than Claude at tool use; the guardrails are the safety net, not the model.
+The same price question was also run through the Next.js `/api/chat` route on this local model: tool call, live MT5 demo price, grounded answer.
 This was a handful of manual prompts, not a benchmark. The Anthropic path has not been run live.
 
 ## Next.js + TypeScript front end (`web/`)
-A Next.js 16 (App Router) and TypeScript UI built on the [Vercel AI SDK](https://github.com/vercel/ai) (`ai` 7, `@ai-sdk/react`, `@ai-sdk/anthropic`).
+A Next.js 16 (App Router) and TypeScript UI built on the [Vercel AI SDK](https://github.com/vercel/ai) (`ai` 7, `@ai-sdk/react`, `@ai-sdk/openai-compatible` for Ollama, and `@ai-sdk/anthropic` as an optional dependency).
 It is a second front end to the same read-only tools: the Next.js route `/api/chat` runs `streamText` with a 6-step tool loop,
 and each tool calls the FastAPI backend at `POST /tools/{name}` (unknown names are rejected with 404).
 - `lib/tools.ts`: the four read-only tools as AI SDK `tool()` definitions with zod schemas; backend failures come back as `{error}` data.
 - `lib/guardrail.ts`: TypeScript port of the number-grounding check; the UI shows a warning under any reply with a price no tool returned.
 - `lib/chat.ts`: system prompt and streaming response; model and tools are injected so it is testable with the SDK's mock model.
+- `lib/model.ts`: picks the model from env. Default `ollama` (OpenAI-compatible endpoint, no key); `LLM_PROVIDER=anthropic` loads Claude only when selected.
 - `app/page.tsx`: `useChat` UI that renders streamed text and each tool call and result.
 
 ```bash
@@ -84,8 +91,8 @@ and each tool calls the FastAPI backend at `POST /tools/{name}` (unknown names a
 uvicorn app.main:app
 # terminal 2: front end
 cd web && npm install
-set ANTHROPIC_API_KEY=your_key
-npm run dev        # http://localhost:3000   (BACKEND_URL defaults to http://127.0.0.1:8000)
+npm run dev        # uses Ollama by default; for Claude set LLM_PROVIDER=anthropic and ANTHROPIC_API_KEY
+#         # http://localhost:3000   (BACKEND_URL defaults to http://127.0.0.1:8000)
 npm test && npm run typecheck && npm run build
 ```
 Tests (Vitest) use the AI SDK mock language model to check the streamed tool call and result, the system prompt, the tool list and the backend error handling.

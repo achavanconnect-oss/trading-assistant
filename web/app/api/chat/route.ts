@@ -1,6 +1,6 @@
-import { anthropic } from '@ai-sdk/anthropic';
 import type { UIMessage } from 'ai';
 import { createChatResponse } from '@/lib/chat';
+import { getModel } from '@/lib/model';
 import { createTools } from '@/lib/tools';
 
 export async function POST(req: Request) {
@@ -9,8 +9,14 @@ export async function POST(req: Request) {
   if (!Array.isArray(messages) || messages.length === 0 || messages.length > 40) {
     return Response.json({ error: 'messages must be an array of 1 to 40 items' }, { status: 400 });
   }
+  let model;
+  try {
+    model = await getModel();
+  } catch (e) {
+    return Response.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
+  }
   return createChatResponse({
-    model: anthropic(process.env.LLM_MODEL ?? 'claude-sonnet-5-5'),
+    model,
     messages,
     tools: createTools(process.env.BACKEND_URL ?? 'http://127.0.0.1:8000'),
   });

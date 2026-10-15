@@ -11,7 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^4.0.81",
+    "@ai-sdk/openai-compatible": "^3.0.70",
     "@ai-sdk/react": "^4.0.146",
     "ai": "^7.0.142",
     "next": "^16.4.1",
@@ -25,5 +25,8 @@
     "@types/react-dom": "^19.3.0",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5"
+  },
+  "optionalDependencies": {
+    "@ai-sdk/anthropic": "^4.0.81"
   }
 }

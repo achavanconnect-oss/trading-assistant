@@ -18,7 +18,12 @@ def get_client():
     if agent.PROVIDER == "ollama":
         from app.ollama_client import OllamaClient
         return OllamaClient(os.getenv("OLLAMA_URL", "http://localhost:11434"))
-    from anthropic import AsyncAnthropic
+    if agent.PROVIDER != "anthropic":
+        raise RuntimeError(f"unknown LLM_PROVIDER {agent.PROVIDER!r}; use 'ollama' or 'anthropic'")
+    try:
+        from anthropic import AsyncAnthropic
+    except ImportError as e:
+        raise RuntimeError("LLM_PROVIDER=anthropic needs: pip install anthropic (and ANTHROPIC_API_KEY)") from e
     return AsyncAnthropic()  # reads ANTHROPIC_API_KEY from the environment
 
 
