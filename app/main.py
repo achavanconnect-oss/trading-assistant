@@ -15,6 +15,9 @@ class ChatIn(BaseModel):
 
 
 def get_client():
+    if agent.PROVIDER == "ollama":
+        from app.ollama_client import OllamaClient
+        return OllamaClient(os.getenv("OLLAMA_URL", "http://localhost:11434"))
     from anthropic import AsyncAnthropic
     return AsyncAnthropic()  # reads ANTHROPIC_API_KEY from the environment
 
@@ -44,7 +47,7 @@ def call_tool(name: str, args: dict | None = None, feed=Depends(get_feed)):
 
 @app.get("/health")
 def health():
-    return {"ok": True, "model": agent.MODEL, "feed": "mt5" if os.getenv("MT5_ENABLED") == "1" else "demo"}
+    return {"ok": True, "provider": agent.PROVIDER, "model": agent.MODEL, "feed": "mt5" if os.getenv("MT5_ENABLED") == "1" else "demo"}
 
 
 app.mount("/static", StaticFiles(directory=STATIC), name="static")

@@ -34,3 +34,13 @@ def unverified_numbers(reply: str, tool_results: list[dict], user_text: str = ""
         if not any(abs(v - k) <= rel_tol * max(abs(k), 1.0) for k in known):
             bad.append(raw)
     return bad
+
+
+def is_grounded(value: float, tool_results: list[dict], user_text: str = "", rel_tol: float = 1e-4) -> bool:
+    """True if `value` appears in a tool result or in the user's own text (within tolerance)."""
+    known: set[float] = set()
+    for r in tool_results:
+        known |= numbers_in(r)
+    for m in NUM.finditer(user_text):
+        known.add(float(m.group(1).replace(",", "")))
+    return any(abs(value - k) <= rel_tol * max(abs(k), 1.0) for k in known)

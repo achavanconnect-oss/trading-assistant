@@ -53,6 +53,23 @@ Every chat turn emits a `metrics` SSE event and appends one JSON line to `logs/m
 input/output tokens, total latency, time to first token, tool time and count of unverified numbers.
 Set `LLM_PRICE_IN_PER_MTOK` and `LLM_PRICE_OUT_PER_MTOK` (from your provider's price list) to also log `cost_usd`.
 
+## Free local model (Ollama)
+No API key needed: `app/ollama_client.py` gives the agent loop the same streaming interface as the Anthropic client.
+```bash
+ollama pull qwen2.5:7b-instruct
+set LLM_PROVIDER=ollama
+uvicorn app.main:app
+```
+Verified live on a Windows PC with an Exness MT5 **demo** account (`MT5_ENABLED=1`, `MT5_SYMBOL_SUFFIX=m`) and `qwen2.5:7b-instruct`:
+- Price question: called `get_price`, answered with the live bid/ask (no warning).
+- "Buy 1 lot of gold": refused, since there is no order tool.
+- "What will EURUSD be tomorrow?": declined to forecast.
+- Sizing question: the first version let the model invent an entry price, and then compute a wrong stop price (2 pips instead of 20, a 10x oversized lot).
+  Two fixes came out of that run: `position_size` rejects an `entry` that did not come from `get_price` or the user, and it accepts `stop_pips` so the
+  model never does price arithmetic. After the fix the model sized 0.5 lots in two out of two runs (after one self-corrected tool error).
+- Latency on a laptop with a 7B model was 12 to 70 seconds per answer. A 7B model is weaker than Claude at tool use; the guardrails are the safety net, not the model.
+This was a handful of manual prompts, not a benchmark. The Anthropic path has not been run live.
+
 ## Next.js + TypeScript front end (`web/`)
 A Next.js 16 (App Router) and TypeScript UI built on the [Vercel AI SDK](https://github.com/vercel/ai) (`ai` 7, `@ai-sdk/react`, `@ai-sdk/anthropic`).
 It is a second front end to the same read-only tools: the Next.js route `/api/chat` runs `streamText` with a 6-step tool loop,

@@ -42,13 +42,16 @@ export function createTools(base: string, f: Fetch = fetch) {
     }),
     position_size: tool({
       description:
-        'Lot size so that hitting the stop loses risk_pct of balance (max 5). Calculation only; does not place a trade.',
+        'Lot size so that hitting the stop loses risk_pct of balance (max 5). Calculation only; does not place a trade. ' +
+        'When the user gives the stop as a distance, pass stop_pips and do NOT compute a stop price yourself. ' +
+        'Otherwise pass entry and stop prices.',
       inputSchema: z.object({
         symbol: z.string(),
         balance: z.number(),
         risk_pct: z.number(),
-        entry: z.number(),
-        stop: z.number(),
+        stop_pips: z.number().optional(),
+        entry: z.number().optional(),
+        stop: z.number().optional(),
       }),
       execute: args => callBackend(base, 'position_size', args, f),
     }),

@@ -3,7 +3,8 @@ import json, os, time
 from typing import AsyncIterator
 from app import tools, guardrails, data
 
-MODEL = os.getenv("LLM_MODEL", "claude-sonnet-5-5")
+PROVIDER = os.getenv("LLM_PROVIDER", "anthropic")   # anthropic | ollama (free, local)
+MODEL = os.getenv("LLM_MODEL", "qwen2.5:7b-instruct" if PROVIDER == "ollama" else "claude-sonnet-5-5")
 MAX_STEPS = 6
 METRICS_LOG = os.getenv("METRICS_LOG", os.path.join("logs", "metrics.jsonl"))
 # Optional USD price per million tokens, set from your provider's current price list; cost is omitted if unset.
@@ -63,7 +64,12 @@ async def run_chat(client, messages: list[dict], feed: data.DemoFeed, model: str
         out = []
         for c in calls:
             ts = time.perf_counter()
-            res = tools.run_tool(c.name, c.input, feed)
+            bad_entry = (c.name == "position_size" and isinstance(c.input.get("entry"), (int, float))
+                         and not guardrails.is_grounded(float(c.input["entry"]), results, user_text))
+            if bad_entry:   # the model must not size a trade from a price it made up
+                res = {"error": "entry price is not from get_price or from the user. Call get_price first, then retry."}
+            else:
+                res = tools.run_tool(c.name, c.input, feed)
             tool_secs += time.perf_counter() - ts
             results.append(res)
             yield {"type": "tool", "name": c.name, "args": c.input, "result": res}

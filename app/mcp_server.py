@@ -41,10 +41,11 @@ def get_account_summary() -> dict:
 
 
 @mcp.tool()
-def position_size(symbol: str, balance: float, risk_pct: float, entry: float, stop: float) -> dict:
-    """Lot size so that hitting the stop loses risk_pct (max 5) of balance. Calculation only."""
-    return tools.run_tool("position_size", dict(symbol=symbol, balance=balance, risk_pct=risk_pct,
-                                                 entry=entry, stop=stop), feed())
+def position_size(symbol: str, balance: float, risk_pct: float, stop_pips: float | None = None,
+                  entry: float | None = None, stop: float | None = None) -> dict:
+    """Lot size so that hitting the stop loses risk_pct (max 5) of balance. Pass stop_pips, or entry and stop. Calculation only."""
+    args = {"symbol": symbol, "balance": balance, "risk_pct": risk_pct, "stop_pips": stop_pips, "entry": entry, "stop": stop}
+    return tools.run_tool("position_size", {k: v for k, v in args.items() if v is not None}, feed())
 
 
 if __name__ == "__main__":

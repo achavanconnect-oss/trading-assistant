@@ -175,3 +175,43 @@ def test_tools_endpoint_runs_read_only_tools_and_rejects_unknown():
         assert "error" in c.post("/tools/get_price", json={"symbol": "NOPE"}).json()
     finally:
         app.dependency_overrides.clear()
+
+
+# ---------- tool-input grounding ----------
+def test_position_size_with_invented_entry_is_rejected_then_recovers():
+    args = dict(symbol="EURUSD", balance=10000, risk_pct=1, entry=1.2345, stop=1.2325)
+    client = FakeClient([[call("position_size", args)],
+                         [call("get_price", {"symbol": "EURUSD"}, id="tu_2")],
+                         [text("Done.")]])
+    ev = collect(client, "size a EURUSD trade, 1% risk, 20 pip stop")
+    tool_events = [e for e in ev if e["type"] == "tool"]
+    assert "error" in tool_events[0]["result"] and "get_price" in tool_events[0]["result"]["error"]
+    assert tool_events[1]["name"] == "get_price"
+
+
+def test_position_size_with_entry_from_get_price_or_user_is_allowed():
+    bid = data.DemoFeed().price("EURUSD")["bid"]
+    ok = dict(symbol="EURUSD", balance=10000, risk_pct=1, entry=bid, stop=bid - 0.002)
+    ev = collect(FakeClient([[call("get_price", {"symbol": "EURUSD"})], [call("position_size", ok, id="tu_2")], [text("ok")]]))
+    assert "lots" in [e for e in ev if e["type"] == "tool"][1]["result"]
+    user_given = dict(symbol="EURUSD", balance=10000, risk_pct=1, entry=1.0850, stop=1.0830)
+    ev = collect(FakeClient([[call("position_size", user_given)], [text("ok")]]), "entry 1.0850 stop 1.0830 balance 10000 risk 1%")
+    assert "lots" in [e for e in ev if e["type"] == "tool"][0]["result"]
+
+
+# ---------- stop given as pips (model never computes a stop price) ----------
+def test_position_size_from_stop_pips_matches_price_based_sizing():
+    by_pips = tools.position_size("EURUSD", 10000, 1, stop_pips=20)
+    by_price = tools.position_size("EURUSD", 10000, 1, entry=1.0850, stop=1.0830)
+    assert by_pips["lots"] == by_price["lots"] == 0.5 and by_pips["stop_pips"] == 20.0
+
+
+def test_position_size_requires_a_stop_and_positive_pips():
+    for kw in (dict(), dict(entry=1.0850), dict(stop_pips=0), dict(stop_pips=-5)):
+        with pytest.raises(ValueError):
+            tools.position_size("EURUSD", 10000, 1, **kw)
+
+
+def test_run_tool_accepts_stop_pips_without_entry():
+    r = tools.run_tool("position_size", dict(symbol="EURUSD", balance=10000, risk_pct=1, stop_pips=20), data.DemoFeed())
+    assert r["lots"] == 0.5
