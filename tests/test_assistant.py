@@ -162,3 +162,16 @@ def test_metrics_without_usage_does_not_break(tmp_path, monkeypatch):
     ev = collect(FakeClient([[text("Hello there.")]]))
     m = next(e for e in ev if e["type"] == "metrics")
     assert m["tokens_in"] == 0 and "cost_usd" not in m
+
+
+# ---------- REST tool endpoint (used by the Next.js front end) ----------
+def test_tools_endpoint_runs_read_only_tools_and_rejects_unknown():
+    app.dependency_overrides[get_feed] = lambda: data.DemoFeed()
+    try:
+        c = TestClient(app)
+        r = c.post("/tools/get_price", json={"symbol": "EURUSD"})
+        assert r.status_code == 200 and r.json()["symbol"] == "EURUSD" and r.json()["bid"] > 0
+        assert c.post("/tools/place_order", json={"symbol": "EURUSD"}).status_code == 404
+        assert "error" in c.post("/tools/get_price", json={"symbol": "NOPE"}).json()
+    finally:
+        app.dependency_overrides.clear()

@@ -53,6 +53,26 @@ Every chat turn emits a `metrics` SSE event and appends one JSON line to `logs/m
 input/output tokens, total latency, time to first token, tool time and count of unverified numbers.
 Set `LLM_PRICE_IN_PER_MTOK` and `LLM_PRICE_OUT_PER_MTOK` (from your provider's price list) to also log `cost_usd`.
 
+## Next.js + TypeScript front end (`web/`)
+A Next.js 16 (App Router) and TypeScript UI built on the [Vercel AI SDK](https://github.com/vercel/ai) (`ai` 7, `@ai-sdk/react`, `@ai-sdk/anthropic`).
+It is a second front end to the same read-only tools: the Next.js route `/api/chat` runs `streamText` with a 6-step tool loop,
+and each tool calls the FastAPI backend at `POST /tools/{name}` (unknown names are rejected with 404).
+- `lib/tools.ts`: the four read-only tools as AI SDK `tool()` definitions with zod schemas; backend failures come back as `{error}` data.
+- `lib/guardrail.ts`: TypeScript port of the number-grounding check; the UI shows a warning under any reply with a price no tool returned.
+- `lib/chat.ts`: system prompt and streaming response; model and tools are injected so it is testable with the SDK's mock model.
+- `app/page.tsx`: `useChat` UI that renders streamed text and each tool call and result.
+
+```bash
+# terminal 1: backend (demo feed, or MT5_ENABLED=1)
+uvicorn app.main:app
+# terminal 2: front end
+cd web && npm install
+set ANTHROPIC_API_KEY=your_key
+npm run dev        # http://localhost:3000   (BACKEND_URL defaults to http://127.0.0.1:8000)
+npm test && npm run typecheck && npm run build
+```
+Tests (Vitest) use the AI SDK mock language model to check the streamed tool call and result, the system prompt, the tool list and the backend error handling.
+
 ## Test (no API key or network needed)
 ```bash
 pytest -q

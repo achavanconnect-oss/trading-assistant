@@ -1,9 +1,9 @@
 import json, os
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, HTTPException
 from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
-from app import agent, data
+from app import agent, data, tools
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 STATIC = os.path.join(HERE, "..", "static")
@@ -32,6 +32,14 @@ async def chat(body: ChatIn, client=Depends(get_client), feed=Depends(get_feed))
         except Exception as e:  # noqa: BLE001
             yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
     return StreamingResponse(sse(), media_type="text/event-stream")
+
+
+@app.post("/tools/{name}")
+def call_tool(name: str, args: dict | None = None, feed=Depends(get_feed)):
+    """Run one read-only tool by name. Used by the Next.js front end; unknown names are rejected."""
+    if name not in {t["name"] for t in tools.TOOL_SPECS}:
+        raise HTTPException(status_code=404, detail=f"unknown tool {name!r}")
+    return tools.run_tool(name, args or {}, feed)
 
 
 @app.get("/health")
